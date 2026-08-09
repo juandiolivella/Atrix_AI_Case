@@ -1,26 +1,28 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 type View = "run" | "quality" | "evidence" | "priorities" | "deck";
 type Category = "Safety" | "Competition" | "Sequencing" | "Access";
 type Priority = "P3" | "P2" | "P1";
+type WorkflowMode = "guided" | "one-click";
+type UploadedFile = { id: string; name: string; type: string; size: number; source: "upload" | "example"; file?: File };
 
 const navigation: { id: View; label: string; eyebrow: string }[] = [
-  { id: "run", label: "Report run", eyebrow: "01" },
+  { id: "run", label: "Upload files", eyebrow: "01" },
   { id: "quality", label: "Data quality", eyebrow: "02" },
   { id: "evidence", label: "Evidence explorer", eyebrow: "03" },
   { id: "priorities", label: "Priority workspace", eyebrow: "04" },
   { id: "deck", label: "Deck handoff", eyebrow: "05" },
 ];
 
-const sources = [
-  ["Assignment Instructions", "DOCX", "Reference"],
-  ["KITs & KIQs", "PPTX", "Taxonomy"],
-  ["MSL Meeting Notes", "XLSX", "103 interactions"],
-  ["ASCO Field Notes", "DOCX", "Qualitative"],
-  ["OVT-209 Training Session", "PPTX", "Context"],
-  ["Legacy Report", "PPTX", "Benchmark"],
+const exampleFiles = [
+  ["Summer-MBA-Intern-TakeHome-Assignment Instructions.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 32768],
+  ["Orivus_KITs_KIQs_ASCO_2025.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", 138240],
+  ["Orivus_MSL_Meeting_Notes_2025.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 57344],
+  ["Orivus_ASCO_2025_Field_Notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 28672],
+  ["Orivus_OVT209_Training_Session3_April2025.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", 92160],
+  ["Example_Legacy_Report_ASCO_2025_Executive_Summary.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", 49152],
 ];
 
 const qualityIssues = [
@@ -64,8 +66,22 @@ export default function Home() {
   const [approved, setApproved] = useState<string[]>([]);
   const [category, setCategory] = useState<Category | "All">("All");
   const [deckReady, setDeckReady] = useState(false);
+  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("guided");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const visibleEvidence = useMemo(() => category === "All" ? evidence : evidence.filter((item) => item.category === category), [category]);
   const remaining = qualityIssues.length - approved.length;
+  const addFiles = (files: FileList | File[]) => {
+    const fileRecords = Array.from(files).map((file, index) => ({ id: `${file.name}-${file.lastModified}-${Date.now()}-${index}`, name: file.name, type: file.type, size: file.size, source: "upload" as const, file }));
+    setUploadedFiles((current) => [...current, ...fileRecords]);
+  };
+  const loadExample = () => setUploadedFiles(exampleFiles.map(([name, type, size], index) => ({ id: `example-${index}`, name: String(name), type: String(type), size: Number(size), source: "example" as const })));
+  const startWorkflow = () => {
+    if (!uploadedFiles.length) return;
+    if (workflowMode === "guided") setView("quality");
+    else { setDeckReady(true); setView("deck"); }
+  };
 
   return (
     <main className="app-shell">
@@ -81,10 +97,20 @@ export default function Home() {
       <section className="workspace">
         <header className="topbar"><div><span className="overline">ORIVUS / ASCO 2025</span><h1>{navigation.find((item) => item.id === view)?.label}</h1></div><div className="topbar-right"><span className="live-chip">● Live workspace</span><button className="avatar" aria-label="User profile">JL</button></div></header>
 
-        {view === "run" && <section className="page-content">
-          <div className="hero"><div><span className="overline orange">REPORT RUN / READY FOR REVIEW</span><h2>From unstructured congress signal to an action-ready story.</h2><p>Six case assets are mapped to the Orivus intelligence taxonomy. Start with quality, then let evidence drive the executive narrative.</p></div><div className="hero-number"><strong>06</strong><span>connected<br />source assets</span></div></div>
-          <div className="stat-grid"><Stat number="103" label="CRM interactions" /><Stat number="48" label="Named HCPs" /><Stat number="20" label="MSLs represented" /><Stat number="04" label="Signal categories" /></div>
-          <section className="panel"><div className="panel-heading"><div><span className="overline">SOURCE INVENTORY</span><h3>Connected input assets</h3></div><button className="text-button" onClick={() => setView("quality")}>Review data quality →</button></div><div className="source-list">{sources.map(([name, type, role]) => <div className="source-row" key={name}><span className="file-type">{type}</span><span className="source-name">{name}</span><span className="source-role">{role}</span><span className="source-check">✓</span></div>)}</div></section>
+        {view === "run" && <section className="page-content upload-page">
+          <div className="upload-intro"><span className="overline orange">STEP 01 / CREATE A REPORT RUN</span><h2>Bring your congress intelligence together.</h2><p>Add the materials you want to analyse. We’ll hold them only for this browser session, then take you through the workflow you choose.</p></div>
+          <div className="upload-layout">
+            <section className="upload-main">
+              <input ref={inputRef} className="file-input" type="file" multiple onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ""; }} />
+              <div className={isDragging ? "dropzone dragging" : "dropzone"} role="button" tabIndex={0} aria-label="Select files to upload" onClick={() => inputRef.current?.click()} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") inputRef.current?.click(); }} onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(event) => { event.preventDefault(); setIsDragging(false); addFiles(event.dataTransfer.files); }}>
+                <span className="upload-icon">↑</span><h3>Drop files here, or browse</h3><p>Any file type is welcome — documents, slides, spreadsheets, PDFs, notes and more.</p><button type="button" className="browse-button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }}>Browse files</button>
+              </div>
+              <div className="session-note"><span>◷</span><p><b>Files stay in this browser session.</b> They are not stored after you close or refresh this page.</p></div>
+              <div className="example-row"><div><span className="overline">TRY THE WORKFLOW</span><p>Use the six Orivus ASCO 2025 case files as a ready-made example.</p></div><button type="button" className="example-button" onClick={loadExample}>Load example case</button></div>
+              <section className="file-queue" aria-live="polite"><div className="queue-heading"><div><span className="overline">FILES IN THIS RUN</span><h3>{uploadedFiles.length ? `${uploadedFiles.length} file${uploadedFiles.length === 1 ? "" : "s"} ready` : "No files added yet"}</h3></div>{uploadedFiles.length > 0 && <button type="button" className="clear-button" onClick={() => setUploadedFiles([])}>Clear all</button>}</div>{uploadedFiles.length > 0 ? <div className="queue-list">{uploadedFiles.map((file) => <div className="upload-row" key={file.id}><span className="file-badge">{fileExtension(file.name)}</span><span className="upload-name">{file.name}<small>{formatFileSize(file.size)} · {file.source === "example" ? "Example case" : "Uploaded"}</small></span><span className="ready-label">Ready</span><button type="button" className="remove-file" aria-label={`Remove ${file.name}`} onClick={() => setUploadedFiles((current) => current.filter((item) => item.id !== file.id))}>×</button></div>)}</div> : <div className="empty-queue">Your selected files will appear here.</div>}</section>
+            </section>
+            <aside className="workflow-choice"><span className="overline">CHOOSE YOUR WORKFLOW</span><h3>How would you like Atrix to work?</h3><button type="button" className={workflowMode === "guided" ? "mode-card selected" : "mode-card"} onClick={() => setWorkflowMode("guided")}><span className="mode-radio">{workflowMode === "guided" && "✓"}</span><span><b>Human in the loop</b><small>You validate every AI suggestion before it becomes part of the final output.</small><em>Recommended for new or high-stakes runs</em></span></button><button type="button" className={workflowMode === "one-click" ? "mode-card selected" : "mode-card"} onClick={() => setWorkflowMode("one-click")}><span className="mode-radio">{workflowMode === "one-click" && "✓"}</span><span><b>One click</b><small>Atrix automatically approves suggestions and progresses directly to the executive deck.</small><em>Best for repeatable, trusted workflows</em></span></button><div className="workflow-footer"><p>{workflowMode === "guided" ? "Next: review data quality and approve every suggested change." : "Next: approved suggestions flow directly into the executive presentation."}</p><button type="button" className="start-button" disabled={!uploadedFiles.length} onClick={startWorkflow}>{workflowMode === "guided" ? "Start guided review" : "Generate executive deck"} <span>→</span></button></div></aside>
+          </div>
         </section>}
 
         {view === "quality" && <section className="page-content">
@@ -115,4 +141,5 @@ export default function Home() {
   );
 }
 
-function Stat({ number, label }: { number: string; label: string }) { return <div className="stat"><strong>{number}</strong><span>{label}</span></div>; }
+function fileExtension(name: string) { const extension = name.split(".").pop(); return extension ? extension.toUpperCase() : "FILE"; }
+function formatFileSize(bytes: number) { return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`; }
