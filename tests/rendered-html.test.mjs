@@ -42,6 +42,7 @@ test("server-renders the Atrix Congress Intelligence Workspace", async () => {
   assert.match(html, /Asset naming variants/);
   assert.match(html, /Approve/);
   assert.match(html, /Keep raw value/);
+  assert.match(html, /View evidence/);
   assert.doesNotMatch(html, /Evidence explorer|Priority workspace|Deck handoff|Start guided review/);
 });
 
@@ -53,6 +54,8 @@ test("removes the temporary starter surface", async () => {
   ]);
 
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
+  assert.match(page, /Raw asset labels/i);
+  assert.match(page, /Applied normalized value/i);
   assert.match(layout, /Atrix Congress Intelligence Workspace/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
