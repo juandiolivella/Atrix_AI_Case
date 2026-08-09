@@ -34,7 +34,12 @@ test("server-renders the Atrix Congress Intelligence Workspace", async () => {
   assert.match(html, /Human in the loop/);
   assert.match(html, /One click/);
   assert.match(html, /Files stay in this browser session/);
-  assert.doesNotMatch(html, /Data quality|Evidence explorer|Priority workspace|Deck handoff|Start guided review/);
+  assert.match(html, /Upload information/);
+  assert.match(html, /Review data quality/);
+  assert.match(html, /Enrich evidence/);
+  assert.match(html, /Prioritize insights/);
+  assert.match(html, /Generate presentation/);
+  assert.doesNotMatch(html, /Evidence explorer|Priority workspace|Deck handoff|Start guided review/);
 });
 
 test("removes the temporary starter surface", async () => {
