@@ -30,13 +30,11 @@ test("server-renders the Atrix Congress Intelligence Workspace", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>Atrix Congress Intelligence Workspace<\/title>/i);
-  assert.match(html, /From congress signal to action-ready intelligence/);
-  assert.match(html, /Report run/);
-  assert.match(html, /Data quality/);
-  assert.match(html, /Evidence explorer/);
-  assert.match(html, /Priority workspace/);
-  assert.match(html, /Deck handoff/);
-  assert.doesNotMatch(html, /Building your site/);
+  assert.match(html, /Bring your congress intelligence together/);
+  assert.match(html, /Human in the loop/);
+  assert.match(html, /One click/);
+  assert.match(html, /Start guided review/);
+  assert.match(html, /Files stay in this browser session/);
 });
 
 test("removes the temporary starter surface", async () => {
