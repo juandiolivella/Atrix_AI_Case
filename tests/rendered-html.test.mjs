@@ -44,6 +44,8 @@ test("server-renders the Atrix Congress Intelligence Workspace", async () => {
   assert.match(html, /Keep raw value/);
   assert.match(html, /Structured evidence map/i);
   assert.match(html, /Accept suggestion/);
+  assert.match(html, /Save changes/);
+  assert.match(html, /P3 — Critical \/ Immediate/);
   assert.match(html, /View evidence/);
   assert.doesNotMatch(html, /Evidence explorer|Priority workspace|Deck handoff|Start guided review/);
 });
