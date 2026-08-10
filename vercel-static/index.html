@@ -72,5 +72,6 @@
       document.querySelector('#chat-input').onchange=e=>{const x=e.target.value.toLowerCase();document.querySelector('#chat-answer').textContent=x.includes('approve')?'Use Approve all in Step 2 or Accept all suggestions in Step 3.':x.includes('download')?'Generate the deck in Step 5 or download the Action Tracker in Step 6.':'Start at Upload, then review data quality, enrich evidence, prioritize insights and generate outputs.'};
     </script>
     <style>.decision.approved{background:#6a28f5!important;color:#fff!important;border-color:#6a28f5!important}</style>
+    <script>document.querySelector('#to-tracker').textContent='Download Insights Deck VF (.pptx)';document.querySelector('#to-tracker').addEventListener('click',event=>{event.stopImmediatePropagation();const link=document.createElement('a');link.href='./20260909%20-%20Insights%20Deck%20VF.pptx';link.download='20260909 - Insights Deck VF.pptx';link.click()},{capture:true});</script>
   </body>
 </html>
