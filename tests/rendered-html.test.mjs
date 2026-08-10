@@ -63,3 +63,12 @@ test("removes the temporary starter surface", async () => {
   assert.match(layout, /Atrix Congress Intelligence Workspace/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
+
+test("defines six real Orivus example-file assets", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(page, /\/examples\/orivus-asco-2025\/Orivus_KITs_KIQs_ASCO_2025\.pptx/);
+  assert.match(page, /\/examples\/orivus-asco-2025\/Orivus_MSL_Meeting_Notes_2025\.xlsx/);
+  assert.match(page, /Loading example case/);
+  assert.match(page, /new File\(/);
+});

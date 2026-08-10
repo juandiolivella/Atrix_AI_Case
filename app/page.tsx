@@ -8,12 +8,12 @@ type Decision = "approved" | "raw";
 type UploadedFile = { id: string; name: string; size: number; source: "upload" | "example"; file?: File };
 
 const exampleFiles = [
-  ["Summer-MBA-Intern-TakeHome-Assignment Instructions.docx", 32768],
-  ["Orivus_KITs_KIQs_ASCO_2025.pptx", 138240],
-  ["Orivus_MSL_Meeting_Notes_2025.xlsx", 57344],
-  ["Orivus_ASCO_2025_Field_Notes.docx", 28672],
-  ["Orivus_OVT209_Training_Session3_April2025.pptx", 92160],
-  ["Example_Legacy_Report_ASCO_2025_Executive_Summary.pptx", 49152],
+  { name: "Summer-MBA-Intern-TakeHome-Assignment_Instructions.docx", path: "/examples/orivus-asco-2025/Summer-MBA-Intern-TakeHome-Assignment_Instructions.docx" },
+  { name: "Orivus_KITs_KIQs_ASCO_2025.pptx", path: "/examples/orivus-asco-2025/Orivus_KITs_KIQs_ASCO_2025.pptx" },
+  { name: "Orivus_MSL_Meeting_Notes_2025.xlsx", path: "/examples/orivus-asco-2025/Orivus_MSL_Meeting_Notes_2025.xlsx" },
+  { name: "Orivus_ASCO_2025_Field_Notes.docx", path: "/examples/orivus-asco-2025/Orivus_ASCO_2025_Field_Notes.docx" },
+  { name: "Orivus_OVT209_Training_Session3_April2025.pptx", path: "/examples/orivus-asco-2025/Orivus_OVT209_Training_Session3_April2025.pptx" },
+  { name: "Example_Legacy_Report_ASCO_2025_Executive_Summary.pptx", path: "/examples/orivus-asco-2025/Example_Legacy_Report_ASCO_2025_Executive_Summary.pptx" },
 ];
 
 const qualityIssues = [
@@ -45,9 +45,27 @@ export default function Home() {
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
   const [enrichmentDecisions, setEnrichmentDecisions] = useState<Record<string, "accepted" | "edited">>({});
   const [isDragging, setIsDragging] = useState(false);
+  const [isExampleLoading, setIsExampleLoading] = useState(false);
+  const [exampleLoadError, setExampleLoadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const addFiles = (files: FileList | File[]) => setUploadedFiles((current) => [...current, ...Array.from(files).map((file, index) => ({ id: `${file.name}-${file.lastModified}-${Date.now()}-${index}`, name: file.name, size: file.size, source: "upload" as const, file }))]);
-  const loadExample = () => setUploadedFiles(exampleFiles.map(([name, size], index) => ({ id: `example-${index}`, name: String(name), size: Number(size), source: "example" as const })));
+  const loadExample = async () => {
+    setIsExampleLoading(true);
+    setExampleLoadError(null);
+    try {
+      const files = await Promise.all(exampleFiles.map(async ({ name, path }) => {
+        const response = await fetch(path);
+        if (!response.ok) throw new Error(`Could not load ${name}`);
+        const blob = await response.blob();
+        return new File([blob], name, { type: blob.type || "application/octet-stream" });
+      }));
+      setUploadedFiles((current) => [...current, ...files.map((file, index) => ({ id: `example-${file.name}-${file.lastModified}-${Date.now()}-${index}`, name: file.name, size: file.size, source: "example" as const, file }))]);
+    } catch {
+      setExampleLoadError("The example case could not be loaded. Please try again.");
+    } finally {
+      setIsExampleLoading(false);
+    }
+  };
   const reviewedCount = Object.keys(decisions).length;
   const setDecision = (issueId: string, decision: Decision) => setDecisions((current) => ({ ...current, [issueId]: decision }));
   const sortedIssues = [...qualityIssues].sort((a, b) => severityRank[a.severity as keyof typeof severityRank] - severityRank[b.severity as keyof typeof severityRank]);
@@ -69,7 +87,8 @@ export default function Home() {
               <input ref={inputRef} className="file-input" type="file" multiple onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ""; }} />
               <div className={isDragging ? "dropzone dragging" : "dropzone"} role="button" tabIndex={0} aria-label="Select files to upload" onClick={() => inputRef.current?.click()} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") inputRef.current?.click(); }} onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(event) => { event.preventDefault(); setIsDragging(false); addFiles(event.dataTransfer.files); }}><span className="upload-icon">↑</span><h2>Drop files here, or browse</h2><p>Any file type is welcome — documents, slides, spreadsheets, PDFs, notes and more.</p><button type="button" className="browse-button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click(); }}>Browse files</button></div>
               <div className="session-note"><span>◷</span><p><b>Files stay in this browser session.</b> They are not stored after you close or refresh this page.</p></div>
-              <div className="example-row"><p>Use the six Orivus ASCO 2025 case files as a ready-made example.</p><button type="button" className="example-button" onClick={loadExample}>Load example case <span>→</span></button></div>
+              <div className="example-row"><p>Use the six Orivus ASCO 2025 case files as a ready-made example.</p><button type="button" className="example-button" onClick={loadExample} disabled={isExampleLoading}>{isExampleLoading ? "Loading example case…" : <>Load example case <span>→</span></>}</button></div>
+              {exampleLoadError && <p className="example-load-error" role="alert">{exampleLoadError}</p>}
               <section className="file-queue" aria-live="polite"><div className="queue-heading"><h2>{uploadedFiles.length ? `${uploadedFiles.length} file${uploadedFiles.length === 1 ? "" : "s"} ready` : "No files added yet"}</h2>{uploadedFiles.length > 0 && <button type="button" className="clear-button" onClick={() => setUploadedFiles([])}>Clear all</button>}</div>{uploadedFiles.length ? <div className="queue-list">{uploadedFiles.map((file) => <div className="upload-row" key={file.id}><span className="file-badge">{fileExtension(file.name)}</span><span className="upload-name">{file.name}<small>{formatFileSize(file.size)} · {file.source === "example" ? "Example case" : "Uploaded"}</small></span><span className="ready-label">Ready</span><button type="button" className="remove-file" aria-label={`Remove ${file.name}`} onClick={() => setUploadedFiles((current) => current.filter((item) => item.id !== file.id))}>×</button></div>)}</div> : <div className="empty-queue">Your selected files will appear here.</div>}</section>
               {uploadedFiles.length > 0 && <button type="button" className="continue-button" onClick={() => setScreen("quality")}>Continue to data quality <span>→</span></button>}
             </section>
