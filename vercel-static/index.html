@@ -61,7 +61,7 @@
     </script>
     <style>.chat-toggle{position:fixed;top:16px;right:22px;z-index:10;border:0;border-radius:999px;background:#6a28f5;color:#fff;padding:11px 15px;font-weight:700}.chat-box{position:fixed;top:62px;right:22px;z-index:10;width:310px;padding:16px;border:1px solid #e6e4ea;border-radius:14px;background:#fff;box-shadow:0 15px 40px #0002}.chat-box input{display:block;width:100%;margin-top:10px;padding:10px;border:1px solid #d7d2df;border-radius:8px}.chat-box p{font-size:12px;line-height:1.5}.bulk{margin:12px 0 0 auto;display:block}.accepted{background:#6a28f5!important;color:#fff!important;border-color:#6a28f5!important}</style>
     <script>
-      const q=document.querySelector('#quality');q.insertAdjacentHTML('beforeend','<button class="continue bulk" id="approve-all">Approve all data-quality suggestions →</button>');
+      const q=document.querySelector('#quality');q.insertAdjacentHTML('afterbegin','<button class="continue bulk" id="approve-all">Approve all data-quality suggestions →</button>');
       document.querySelector('#enrich').insertAdjacentHTML('beforeend','<button class="continue bulk" id="accept-all">Accept all suggestions →</button>');
       document.querySelector('#tracker').insertAdjacentHTML('beforeend','<button class="continue" id="download-todos" style="margin-top:18px">Download action tracker (.csv)</button>');
       document.querySelector('body').insertAdjacentHTML('beforeend','<button class="chat-toggle" id="chat-toggle">Ask Atrix</button><aside class="chat-box" id="chat-box" hidden><b>Workflow assistant</b><p id="chat-answer">Ask how to move through the workflow, review assumptions, or download outputs.</p><input id="chat-input" placeholder="How do I approve all?" /></aside>');
@@ -71,5 +71,6 @@
       document.querySelector('#chat-toggle').onclick=()=>document.querySelector('#chat-box').hidden=!document.querySelector('#chat-box').hidden;
       document.querySelector('#chat-input').onchange=e=>{const x=e.target.value.toLowerCase();document.querySelector('#chat-answer').textContent=x.includes('approve')?'Use Approve all in Step 2 or Accept all suggestions in Step 3.':x.includes('download')?'Generate the deck in Step 5 or download the Action Tracker in Step 6.':'Start at Upload, then review data quality, enrich evidence, prioritize insights and generate outputs.'};
     </script>
+    <style>.decision.approved{background:#6a28f5!important;color:#fff!important;border-color:#6a28f5!important}</style>
   </body>
 </html>
