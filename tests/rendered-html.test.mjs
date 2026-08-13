@@ -79,3 +79,12 @@ test("approved deck download does not block the action tracker transition", asyn
   assert.doesNotMatch(staticPage, /to-tracker[^]*stopImmediatePropagation\(\)/);
   assert.match(staticPage, /openActionTracker/);
 });
+
+test("one-click runs route directly to the executive handoff", async () => {
+  const staticPage = await readFile(new URL("../vercel-static/index.html", import.meta.url), "utf8");
+
+  assert.match(staticPage, /selectedMode/);
+  assert.match(staticPage, /openOneClickDeck/);
+  assert.match(staticPage, /approved using workflow history/);
+  assert.match(staticPage, /selectedMode==='one-click'\?openOneClickDeck\(\):openDataQualityReview\(\)/);
+});
