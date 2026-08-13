@@ -70,5 +70,30 @@
     </script>
     <style>.decision.approved{background:#6a28f5!important;color:#fff!important;border-color:#6a28f5!important}</style>
     <script>const approvedDeckButton=document.querySelector('#to-tracker');approvedDeckButton.textContent='Download Insights Deck VF (.pptx) & open action tracker →';approvedDeckButton.onclick=()=>{const link=document.createElement('a');link.href='./20260909%20-%20Insights%20Deck%20VF.pptx';link.download='20260909 - Insights Deck VF.pptx';link.click();openActionTracker()};</script>
+    <script>
+      let selectedMode='human';
+      const workflowModes=document.querySelectorAll('.mode');
+      workflowModes.forEach((button,index)=>{
+        const selectMode=button.onclick;
+        button.onclick=()=>{selectMode();selectedMode=index===1?'one-click':'human'};
+      });
+      const openDataQualityReview=next.onclick;
+      document.querySelector('#deck .enrich-box').insertAdjacentHTML('afterbegin','<div class="notice" id="one-click-disclaimer" hidden><span>✓</span><p><b>One-click run.</b> All suggestions were approved using workflow history. You can review source material directly in the platform at any time.</p></div>');
+      const openOneClickDeck=()=>{
+        upload.hidden=true;
+        quality.hidden=true;
+        document.querySelector('#enrich').hidden=true;
+        document.querySelector('#priority').hidden=true;
+        document.querySelector('#deck').hidden=false;
+        document.querySelector('#one-click-disclaimer').hidden=false;
+        steps.forEach((step,index)=>{
+          step.className=index<4?'complete':index===4?'active':'upcoming';
+          step.querySelector('span').textContent=index<4?'✓':String(index+1).padStart(2,'0');
+          step.querySelector('small').textContent=index<4?'Auto-approved':index===4?'Ready to download':'Upcoming';
+        });
+        window.scrollTo(0,0);
+      };
+      next.onclick=()=>selectedMode==='one-click'?openOneClickDeck():openDataQualityReview();
+    </script>
   </body>
 </html>
