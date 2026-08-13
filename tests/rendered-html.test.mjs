@@ -72,3 +72,10 @@ test("defines six real Orivus example-file assets", async () => {
   assert.match(page, /Loading example case/);
   assert.match(page, /new File\(/);
 });
+
+test("approved deck download does not block the action tracker transition", async () => {
+  const staticPage = await readFile(new URL("../vercel-static/index.html", import.meta.url), "utf8");
+
+  assert.doesNotMatch(staticPage, /to-tracker[^]*stopImmediatePropagation\(\)/);
+  assert.match(staticPage, /openActionTracker/);
+});
