@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import JSZip from "jszip";
+import { DOMMatrix } from "@napi-rs/canvas";
 
 import {
   extractDocument,
   validateDocumentFormat,
 } from "../lib/documents/extraction.ts";
+
+test("provides the DOMMatrix runtime required by the server-side PDF extractor", () => {
+  assert.equal(typeof DOMMatrix, "function");
+});
 
 const PDF_WITH_TWO_PAGES = `%PDF-1.4
 1 0 obj
