@@ -10,15 +10,15 @@ function isUuid(value: string) {
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ runId: string }> },
 ) {
-  const { id } = await context.params;
-  if (!isUuid(id)) {
+  const { runId } = await context.params;
+  if (!isUuid(runId)) {
     return Response.json({ error: "run id must be a UUID." }, { status: 400 });
   }
 
   try {
-    const run = await getWorkflowRunById(id);
+    const run = await getWorkflowRunById(runId);
     if (!run) {
       return Response.json({ error: "Run not found." }, { status: 404 });
     }

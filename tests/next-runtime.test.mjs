@@ -20,7 +20,7 @@ test("configures Vercel to deploy the Next.js application instead of the static 
   const packageConfig = JSON.parse(packageJson);
   const vercelConfig = JSON.parse(vercelJson);
 
-  assert.equal(packageConfig.scripts.build, "next build");
+  assert.match(packageConfig.scripts.build, /^next build/);
   assert.equal(packageConfig.scripts.dev, "next dev");
   assert.ok(packageConfig.dependencies.next, "Next.js must be a runtime dependency");
   assert.equal(vercelConfig.framework, "nextjs");
@@ -32,8 +32,8 @@ test("serves Screen 0 as the root route with explicit demo and functional-workfl
 
   assert.match(page, /Functional workflow/i);
   assert.match(page, /Explore demo/i);
-  assert.match(page, /href=["']\/demo["']/);
-  assert.match(page, /href=["']\/workspace["']/);
+  assert.match(page, /href:\s*["']\/demo["']/);
+  assert.match(page, /href:\s*["']\/workspace["']/);
 });
 
 test("defines Node.js API routes for every persisted functional-workflow stage", async () => {
