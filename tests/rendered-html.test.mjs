@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function render() {
+async function render(path = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(`http://localhost${path}`, {
       headers: { accept: "text/html" },
     }),
     {
@@ -23,36 +23,40 @@ async function render() {
   );
 }
 
-test("server-renders the Atrix Congress Intelligence Workspace", async () => {
+test("server-renders the Atrix Congress Intelligence Workspace entry screen", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<title>Atrix Congress Intelligence Workspace<\/title>/i);
-  assert.match(html, /Bring your congress intelligence together/);
-  assert.match(html, /Human in the loop/);
-  assert.match(html, /One click/);
-  assert.match(html, /Files stay in this browser session/);
-  assert.match(html, /Upload information/);
-  assert.match(html, /Review data quality/);
-  assert.match(html, /Enrich evidence/);
-  assert.match(html, /Prioritize insights/);
-  assert.match(html, /Generate presentation/);
-  assert.match(html, /Asset naming variants/);
-  assert.match(html, /Approve/);
-  assert.match(html, /Keep raw value/);
-  assert.match(html, /Structured evidence map/i);
-  assert.match(html, /Accept suggestion/);
-  assert.match(html, /Save changes/);
-  assert.match(html, /P3 — Critical \/ Immediate/);
-  assert.match(html, /View evidence/);
-  assert.doesNotMatch(html, /Evidence explorer|Priority workspace|Deck handoff|Start guided review/);
+  assert.match(html, /Choose your workspace/i);
+  assert.match(html, /Explore demo/i);
+  assert.match(html, /Start functional workflow/i);
+});
+
+test("routes visitors from Screen 0 to the demo or functional workspace", async () => {
+  const [landing, demo, workspace] = await Promise.all([
+    render("/"),
+    render("/demo"),
+    render("/workspace"),
+  ]);
+
+  assert.equal(landing.status, 200);
+  assert.match(await landing.text(), /Choose your workspace/i);
+  assert.match(await render("/").then((response) => response.text()), /href="\/demo"/);
+  assert.match(await render("/").then((response) => response.text()), /href="\/workspace"/);
+
+  assert.equal(demo.status, 200);
+  assert.match(await demo.text(), /Bring your congress intelligence together/);
+
+  assert.equal(workspace.status, 200);
+  assert.match(await workspace.text(), /Start a functional workflow/i);
 });
 
 test("removes the temporary starter surface", async () => {
   const [page, layout, packageJson] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/demo/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
@@ -65,7 +69,7 @@ test("removes the temporary starter surface", async () => {
 });
 
 test("defines six real Orivus example-file assets", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/demo/page.tsx", import.meta.url), "utf8");
 
   assert.match(page, /\/examples\/orivus-asco-2025\/Orivus_KITs_KIQs_ASCO_2025\.pptx/);
   assert.match(page, /\/examples\/orivus-asco-2025\/Orivus_MSL_Meeting_Notes_2025\.xlsx/);
