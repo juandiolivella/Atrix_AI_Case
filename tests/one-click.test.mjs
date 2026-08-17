@@ -11,6 +11,9 @@ test("defines a Node One Click orchestration route with automatic decision recor
   assert.match(route, /actionTrackerPost/);
   assert.match(route, /executiveReadoutPost/);
   assert.match(route, /auto_approve/);
+  assert.match(route, /approvedPlaybookRules/);
+  assert.match(route, /x-atrix-playbook/);
+  assert.match(route, /playbookRuleId/);
 });
 
 test("workspace exposes the One Click automatic-run disclaimer", async () => {

@@ -4,6 +4,7 @@ import {
   type DataQualityIssue,
   validateDataQualityIssues,
 } from "./analysis-audit.js";
+import { formatPlaybookGuidance } from "./playbook-guidance.js";
 
 export type SourceBlockForAnalysis = {
   documentId: string;
@@ -121,6 +122,7 @@ export function parseDataQualityIssues(outputText: string): DataQualityIssue[] {
 export async function analyzeDataQuality(
   blocks: SourceBlockForAnalysis[],
   client: ResponsesClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY }),
+  playbookRules: readonly string[] = [],
 ): Promise<DataQualityIssue[]> {
   const response = await client.responses.create({
     model: "gpt-4.1-mini",
@@ -131,6 +133,7 @@ export async function analyzeDataQuality(
       "Use exact documentId, fileName, and locator values from the source blocks.",
       "Do not invent facts, identifiers, evidence, or record counts. If evidence is weak, set confidence to low.",
       "Return no more than 10 material issues, ordered high to low severity.",
+      formatPlaybookGuidance(playbookRules),
     ].join(" "),
     input: buildDataQualityInput(blocks),
     text: {

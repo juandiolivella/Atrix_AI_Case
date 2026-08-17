@@ -7,6 +7,7 @@ import { workflowArtifacts, workflowRuns, workflowStages } from "@/db/schema";
 import { isOpenAIConfigured } from "@/lib/data-quality";
 import { analyzePriorities, type PrioritizedInsight } from "@/lib/priorities";
 import type { EnrichmentSignal } from "@/lib/enrichment";
+import { playbookFromRequest } from "@/lib/playbook";
 
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ runId: string }> };
@@ -30,7 +31,7 @@ export async function GET(_: Request, context: RouteContext) {
   }
 }
 
-export async function POST(_: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   if (!isOpenAIConfigured()) return error(503, "OPENAI_NOT_CONFIGURED", "OPENAI_API_KEY is required to prioritize insights.");
   const { runId } = await context.params;
   try {
@@ -42,7 +43,7 @@ export async function POST(_: Request, context: RouteContext) {
     if (!enrichment || !Array.isArray(signals) || signals.length === 0) return error(409, "ENRICHMENT_REQUIRED", "Run evidence enrichment before prioritizing insights.");
     const [stage] = await db.insert(workflowStages).values({ runId, type: "priorities", status: "running", startedAt: new Date(), errorMessage: null })
       .onConflictDoUpdate({ target: [workflowStages.runId, workflowStages.type], set: { status: "running", startedAt: new Date(), completedAt: null, errorMessage: null } }).returning();
-    const insights = await analyzePriorities(signals);
+    const insights = await analyzePriorities(signals, undefined, playbookFromRequest(request));
     const output = { insights, generatedAt: new Date().toISOString(), sourceSignalCount: signals.length };
     await db.update(workflowStages).set({ status: "awaiting_review", outputJson: output, completedAt: new Date(), errorMessage: null }).where(eq(workflowStages.id, stage.id));
     const blobKey = `runs/${runId}/04-priorities.md`;

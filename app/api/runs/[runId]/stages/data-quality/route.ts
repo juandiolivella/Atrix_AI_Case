@@ -16,6 +16,7 @@ import {
   workflowRuns,
   workflowStages,
 } from "@/db/schema";
+import { playbookFromRequest } from "@/lib/playbook";
 
 export const runtime = "nodejs";
 
@@ -103,7 +104,7 @@ export async function GET(_: Request, context: RouteContext) {
   }
 }
 
-export async function POST(_: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   if (!isOpenAIConfigured()) {
     return errorResponse(
       503,
@@ -134,7 +135,7 @@ export async function POST(_: Request, context: RouteContext) {
       return errorResponse(409, "NO_EXTRACTED_CONTENT", "Upload and extract at least one supported document before running Data Quality.");
     }
 
-    const issues = await analyzeDataQuality(blocks);
+    const issues = await analyzeDataQuality(blocks, undefined, playbookFromRequest(request));
     const outputJson = { issues, generatedAt: new Date().toISOString(), sourceBlockCount: blocks.length };
 
     await db

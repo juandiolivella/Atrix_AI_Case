@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 
 import type { SourceBlockForAnalysis } from "./data-quality";
+import { formatPlaybookGuidance } from "./playbook-guidance.js";
 
 export type EnrichmentEvidence = { documentId: string; fileName: string; locator: string; excerpt: string };
 export type EnrichmentSignal = {
@@ -45,11 +46,11 @@ export function isEnrichmentSignal(value: unknown): value is EnrichmentSignal {
     && Array.isArray(signal.evidence) && signal.evidence.length > 0 && signal.evidence.every((evidence) => evidence && nonEmpty(evidence.documentId) && nonEmpty(evidence.fileName) && nonEmpty(evidence.locator) && nonEmpty(evidence.excerpt));
 }
 
-export async function analyzeEnrichment(blocks: SourceBlockForAnalysis[]): Promise<EnrichmentSignal[]> {
+export async function analyzeEnrichment(blocks: SourceBlockForAnalysis[], playbookRules: readonly string[] = []): Promise<EnrichmentSignal[]> {
   const source = blocks.slice(0, 80).map((block, index) => `SOURCE ${index + 1}\ndocumentId: ${block.documentId}\nfileName: ${block.fileName}\nlocator: ${block.locator}\ntext: ${block.text.slice(0, 1500)}`).join("\n\n---\n\n");
   const response = await new OpenAI({ apiKey: process.env.OPENAI_API_KEY }).responses.create({
     model: "gpt-4.1-mini",
-    instructions: "You are Atrix AI's evidence enrichment analyst. Cluster recurring, decision-relevant evidence into no more than 8 signals. Each signal must suggest one decision question, state only what the provided sources support, assign confidence based on source convergence, and cite exact evidence references from the inputs. Do not invent facts.",
+    instructions: ["You are Atrix AI's evidence enrichment analyst. Cluster recurring, decision-relevant evidence into no more than 8 signals. Each signal must suggest one decision question, state only what the provided sources support, assign confidence based on source convergence, and cite exact evidence references from the inputs. Do not invent facts.", formatPlaybookGuidance(playbookRules)].join("\n"),
     input: source,
     text: { format: { type: "json_schema", name: "enrichment_signals", strict: true, schema } },
   });

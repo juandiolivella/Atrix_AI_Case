@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 
 import type { EnrichmentEvidence, EnrichmentSignal } from "./enrichment";
+import { formatPlaybookGuidance } from "./playbook-guidance.js";
 
 export type PriorityLevel = "P3" | "P2" | "P1";
 export type PrioritizedInsight = {
@@ -68,10 +69,10 @@ export function buildPrioritiesInput(signals: EnrichmentSignal[]): string {
   ].join("\n")).join("\n\n---\n\n");
 }
 
-export async function analyzePriorities(signals: EnrichmentSignal[], client: ResponsesClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })): Promise<PrioritizedInsight[]> {
+export async function analyzePriorities(signals: EnrichmentSignal[], client: ResponsesClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), playbookRules: readonly string[] = []): Promise<PrioritizedInsight[]> {
   const response = await client.responses.create({
     model: "gpt-4.1-mini",
-    instructions: "You are Atrix AI's prioritization analyst. Rank decision-ready insights derived from enrichment signals. P3 is critical/immediate: direct impact on near-term execution, act in days. P2 is important/near-term: strategy or cross-functional planning, act in weeks. P1 is monitor/lower priority: valuable signal but not urgent. Every insight must name a concrete action and a suggested functional owner; owners are inferred, not confirmed. Keep confidence aligned to source convergence. Cite only exact evidence supplied in the signals and use their exact signal ids. Do not invent facts. Return no more than 8 insights ordered P3, P2, P1.",
+    instructions: ["You are Atrix AI's prioritization analyst. Rank decision-ready insights derived from enrichment signals. P3 is critical/immediate: direct impact on near-term execution, act in days. P2 is important/near-term: strategy or cross-functional planning, act in weeks. P1 is monitor/lower priority: valuable signal but not urgent. Every insight must name a concrete action and a suggested functional owner; owners are inferred, not confirmed. Keep confidence aligned to source convergence. Cite only exact evidence supplied in the signals and use their exact signal ids. Do not invent facts. Return no more than 8 insights ordered P3, P2, P1.", formatPlaybookGuidance(playbookRules)].join("\n"),
     input: buildPrioritiesInput(signals),
     text: { format: { type: "json_schema", name: "prioritized_insights", strict: true, schema } },
   });

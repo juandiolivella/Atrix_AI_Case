@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import { sourceBlocks, workflowArtifacts, workflowDocuments, workflowRuns, workflowStages } from "@/db/schema";
 import { isOpenAIConfigured, type SourceBlockForAnalysis } from "@/lib/data-quality";
 import { analyzeEnrichment } from "@/lib/enrichment";
+import { playbookFromRequest } from "@/lib/playbook";
 
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ runId: string }> };
@@ -35,7 +36,7 @@ export async function GET(_: Request, context: RouteContext) {
   }
 }
 
-export async function POST(_: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   if (!isOpenAIConfigured()) return error(503, "OPENAI_NOT_CONFIGURED", "OPENAI_API_KEY is required to enrich evidence.");
   const { runId } = await context.params;
   try {
@@ -46,7 +47,7 @@ export async function POST(_: Request, context: RouteContext) {
       .onConflictDoUpdate({ target: [workflowStages.runId, workflowStages.type], set: { status: "running", startedAt: new Date(), completedAt: null, errorMessage: null } }).returning();
     const blocks = await blocksForRun(runId);
     if (!blocks.length) return error(409, "NO_EXTRACTED_CONTENT", "Upload and extract a supported document before enrichment.");
-    const signals = await analyzeEnrichment(blocks);
+    const signals = await analyzeEnrichment(blocks, playbookFromRequest(request));
     const output = { signals, generatedAt: new Date().toISOString(), sourceBlockCount: blocks.length };
     await db.update(workflowStages).set({ status: "awaiting_review", outputJson: output, completedAt: new Date(), errorMessage: null }).where(eq(workflowStages.id, stage.id));
     const blobKey = `runs/${runId}/03-enrichment.md`;
