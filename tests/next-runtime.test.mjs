@@ -63,3 +63,14 @@ test("keeps the approved Insights Deck available from Next public assets", async
   assert.ok(publicDeck.size > 0);
   assert.ok(legacyDeck.isFile());
 });
+
+test("connects the functional workspace to persistent runs and CSV uploads", async () => {
+  const page = await read("app/workspace/page.tsx");
+
+  assert.match(page, /["']use client["']/);
+  assert.match(page, /fetch\(["']\/api\/runs["']/);
+  assert.match(page, /\/api\/runs\/\$\{activeRun\.id\}\/documents/);
+  assert.match(page, /accept=["']\.csv,text\/csv["']/);
+  assert.match(page, /Creating run|Uploading/);
+  assert.match(page, /Run created|Upload complete/);
+});
