@@ -41,6 +41,7 @@ export default function WorkspacePage() {
   const [pendingEnrichmentId, setPendingEnrichmentId] = useState<string | null>(null);
   const [priorities, setPriorities] = useState<PrioritizedInsight[]>([]);
   const [prioritizing, setPrioritizing] = useState(false);
+  const [generatingDeck, setGeneratingDeck] = useState(false);
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -187,6 +188,25 @@ export default function WorkspacePage() {
     } finally { setPrioritizing(false); }
   };
 
+  const generateExecutiveReadout = async () => {
+    if (!run || priorities.length === 0) return;
+    setError(null); setGeneratingDeck(true);
+    try {
+      const response = await fetch(`/api/runs/${run.id}/stages/executive-readout`, { method: "POST" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(readApiError(payload, "The executive readout could not be generated."));
+      }
+      const deck = await response.blob();
+      const url = URL.createObjectURL(deck);
+      const link = document.createElement("a");
+      link.href = url; link.download = `${run.name.replaceAll(/[^a-z0-9]+/gi, "-").replaceAll(/^-|-$/g, "").toLowerCase() || "atrix"}-executive-readout.pptx`;
+      link.click(); URL.revokeObjectURL(url);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    } finally { setGeneratingDeck(false); }
+  };
+
   const saveEnrichmentDecision = async (signalId: string, choice: "accepted" | "edited") => {
     if (!run) return;
     setError(null); setPendingEnrichmentId(signalId);
@@ -240,6 +260,12 @@ export default function WorkspacePage() {
         {files.length > 0 && <div className="workspace-file-list">{files.map((file) => <span key={`${file.name}-${file.lastModified}`}>{file.name} <small>{formatFileSize(file.size)}</small></span>)}</div>}
         {run && files.length > 0 && <button className="continue-button workspace-action" type="button" onClick={uploadSelectedFiles} disabled={requestState === "uploading"}>{requestState === "uploading" ? "Uploading…" : "Upload files →"}</button>}
         {documents.length > 0 && <div className="workspace-documents"><b>Stored documents</b>{documents.map((document) => <div key={document.id}><span>{document.filename}</span><small>{document.status} · {document.sourceBlockCount} source block{document.sourceBlockCount === 1 ? "" : "s"}</small><small>{document.message}</small></div>)}</div>}
+      </section>
+
+      <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
+        <div className="workspace-card-heading"><span>06</span><div><b>Generate Executive Readout</b><small>Create a downloadable, executive-ready deck from the prioritized insights, actions, owners and traceable source evidence.</small></div></div>
+        <button className="continue-button workspace-action" type="button" onClick={generateExecutiveReadout} disabled={priorities.length === 0 || generatingDeck}>{generatingDeck ? "Generating deck…" : "Download Executive Readout →"}</button>
+        {priorities.length === 0 && <small className="workspace-hint">Run Prioritize Insights first to create the executive readout.</small>}
       </section>
 
       <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
