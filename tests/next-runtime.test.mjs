@@ -41,6 +41,7 @@ test("defines Node.js API routes for every persisted functional-workflow stage",
     "app/api/runs/route.ts",
     "app/api/runs/[runId]/documents/route.ts",
     "app/api/runs/[runId]/stages/data-quality/route.ts",
+    "app/api/runs/[runId]/stages/enrichment/route.ts",
   ];
 
   await Promise.all(routes.map(exists));
@@ -74,6 +75,8 @@ test("connects the functional workspace to persistent uploads and Data Quality",
   assert.match(page, /\/api\/runs\/\$\{run\.id\}\/stages\/data-quality/);
   assert.match(page, /Run Data Quality/);
   assert.match(page, /Data Quality results/);
+  assert.match(page, /\/stages\/enrichment/);
+  assert.match(page, /Run Enrichment/);
   assert.match(page, /Creating run|Uploading/);
   assert.match(page, /Run created|Upload complete/);
 });

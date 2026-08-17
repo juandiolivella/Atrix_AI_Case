@@ -22,6 +22,7 @@ type DataQualityIssue = {
   affectedRecords: number;
 };
 type DecisionChoice = "approve" | "keep_raw";
+type EnrichmentSignal = { id: string; title: string; decisionQuestion: string; summary: string; confidence: "high" | "medium" | "low"; sourceDocuments: string[] };
 type RequestState = "idle" | "creating" | "ready" | "uploading" | "uploaded" | "analysing" | "analysed" | "error";
 
 export default function WorkspacePage() {
@@ -33,6 +34,9 @@ export default function WorkspacePage() {
   const [issues, setIssues] = useState<DataQualityIssue[]>([]);
   const [decisions, setDecisions] = useState<Record<string, DecisionChoice>>({});
   const [pendingDecisionId, setPendingDecisionId] = useState<string | null>(null);
+  const [signals, setSignals] = useState<EnrichmentSignal[]>([]);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichmentDecisions, setEnrichmentDecisions] = useState<Record<string, "accepted" | "edited">>({});
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -153,6 +157,19 @@ export default function WorkspacePage() {
     }
   };
 
+  const runEnrichment = async () => {
+    if (!run || issues.length === 0) return;
+    setError(null); setEnriching(true);
+    try {
+      const response = await fetch(`/api/runs/${run.id}/stages/enrichment`, { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(readApiError(payload, "Evidence enrichment could not be completed."));
+      setSignals(payload.stage?.output?.signals ?? []); setEnrichmentDecisions({});
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    } finally { setEnriching(false); }
+  };
+
   const statusCopy = {
     idle: "Create a run to start retaining your source files and learning records.",
     creating: "Creating persistent run…",
@@ -190,6 +207,13 @@ export default function WorkspacePage() {
         {files.length > 0 && <div className="workspace-file-list">{files.map((file) => <span key={`${file.name}-${file.lastModified}`}>{file.name} <small>{formatFileSize(file.size)}</small></span>)}</div>}
         {run && files.length > 0 && <button className="continue-button workspace-action" type="button" onClick={uploadSelectedFiles} disabled={requestState === "uploading"}>{requestState === "uploading" ? "Uploading…" : "Upload files →"}</button>}
         {documents.length > 0 && <div className="workspace-documents"><b>Stored documents</b>{documents.map((document) => <div key={document.id}><span>{document.filename}</span><small>{document.status} · {document.sourceBlockCount} source block{document.sourceBlockCount === 1 ? "" : "s"}</small><small>{document.message}</small></div>)}</div>}
+      </section>
+
+      <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
+        <div className="workspace-card-heading"><span>04</span><div><b>Enrich Evidence</b><small>Cluster validated source evidence into decision-ready signals with a suggested decision question.</small></div></div>
+        <button className="continue-button workspace-action" type="button" onClick={runEnrichment} disabled={issues.length === 0 || enriching}>{enriching ? "Enriching evidence…" : "Run Enrichment →"}</button>
+        {issues.length === 0 && <small className="workspace-hint">Complete Data Quality first to unlock enrichment.</small>}
+        {signals.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Signals ready for review</b><small>{Object.keys(enrichmentDecisions).length} / {signals.length} reviewed</small></div>{signals.map((signal) => <article key={signal.id} className="workspace-issue"><div><span>{signal.confidence}</span><b>{signal.title}</b></div><p>{signal.summary}</p><p><strong>Decision question:</strong> {signal.decisionQuestion}</p><small>{signal.sourceDocuments.length} source document{signal.sourceDocuments.length === 1 ? "" : "s"}</small><div className="workspace-decision-row"><span>{enrichmentDecisions[signal.id] === "accepted" ? "Suggestion accepted" : enrichmentDecisions[signal.id] === "edited" ? "Marked for edit" : "Choose an enrichment action"}</span><div><button type="button" className={enrichmentDecisions[signal.id] === "accepted" ? "decision approved" : "decision"} onClick={() => setEnrichmentDecisions((current) => ({ ...current, [signal.id]: "accepted" }))}>Accept suggestion</button><button type="button" className={enrichmentDecisions[signal.id] === "edited" ? "decision raw" : "decision"} onClick={() => setEnrichmentDecisions((current) => ({ ...current, [signal.id]: "edited" }))}>Edit</button></div></div></article>)}</div>}
       </section>
 
       <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
