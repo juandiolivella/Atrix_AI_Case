@@ -57,6 +57,7 @@ async function writeStageMarkdown(
   const blob = await put(blobKey, markdown, {
     access: "private",
     addRandomSuffix: false,
+    allowOverwrite: true,
     contentType: "text/markdown; charset=utf-8",
   });
 

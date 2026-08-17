@@ -72,6 +72,7 @@ async function writeUpdatedAudit(runId: string, stageId: string, issues: DataQua
   const blob = await put(blobKey, markdown, {
     access: "private",
     addRandomSuffix: false,
+    allowOverwrite: true,
     contentType: "text/markdown; charset=utf-8",
   });
 

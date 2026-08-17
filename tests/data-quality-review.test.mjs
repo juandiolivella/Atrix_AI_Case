@@ -12,6 +12,7 @@ test("persists individual data-quality review choices and rewrites the audit", a
 
   assert.match(route, /reviewDecisions/);
   assert.match(route, /createDataQualityAuditMarkdown/);
+  assert.match(route, /allowOverwrite:\s*true/);
   assert.match(route, /"approve"/);
   assert.match(route, /"keep_raw"/);
 });
