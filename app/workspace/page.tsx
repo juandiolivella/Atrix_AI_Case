@@ -21,6 +21,7 @@ type DataQualityIssue = {
   confidence: "high" | "medium" | "low";
   affectedRecords: number;
 };
+type DecisionChoice = "approve" | "keep_raw";
 type RequestState = "idle" | "creating" | "ready" | "uploading" | "uploaded" | "analysing" | "analysed" | "error";
 
 export default function WorkspacePage() {
@@ -30,6 +31,8 @@ export default function WorkspacePage() {
   const [files, setFiles] = useState<File[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [issues, setIssues] = useState<DataQualityIssue[]>([]);
+  const [decisions, setDecisions] = useState<Record<string, DecisionChoice>>({});
+  const [pendingDecisionId, setPendingDecisionId] = useState<string | null>(null);
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -122,10 +125,31 @@ export default function WorkspacePage() {
       }
 
       setIssues(payload.stage?.output?.issues ?? []);
+      setDecisions({});
       setRequestState("analysed");
     } catch (caughtError) {
       setRequestState("error");
       setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    }
+  };
+
+  const saveDecision = async (issueId: string, choice: DecisionChoice) => {
+    if (!run) return;
+    setError(null);
+    setPendingDecisionId(issueId);
+    try {
+      const response = await fetch(`/api/runs/${run.id}/stages/data-quality/decisions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issueId, choice }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(readApiError(payload, "The review decision could not be saved."));
+      setDecisions((current) => ({ ...current, [issueId]: choice }));
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    } finally {
+      setPendingDecisionId(null);
     }
   };
 
@@ -172,7 +196,7 @@ export default function WorkspacePage() {
         <div className="workspace-card-heading"><span>03</span><div><b>Review Data Quality</b><small>Analyse extracted evidence for missing values, inconsistent labels and traceability gaps.</small></div></div>
         <button className="continue-button workspace-action" type="button" onClick={runDataQuality} disabled={!documents.some((document) => document.status === "extracted") || requestState === "analysing"}>{requestState === "analysing" ? "Running Data Quality…" : "Run Data Quality →"}</button>
         {documents.length > 0 && !documents.some((document) => document.status === "extracted") && <small className="workspace-hint">Add an extractable document before running this stage. PDFs remain queued for now.</small>}
-        {issues.length > 0 && <div className="workspace-issues"><b>Data Quality results</b>{issues.map((issue) => <article key={issue.id} className={`workspace-issue severity-${issue.severity}`}><div><span>{issue.severity}</span><b>{issue.title}</b></div><p>{issue.whatFound}</p><p><strong>Suggested correction:</strong> {issue.suggestedCorrection}</p><small>{issue.affectedRecords} affected record{issue.affectedRecords === 1 ? "" : "s"} · {issue.confidence} confidence</small></article>)}</div>}
+        {issues.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Data Quality results</b><small>{Object.keys(decisions).length} / {issues.length} reviewed</small></div>{issues.map((issue) => <article key={issue.id} className={`workspace-issue severity-${issue.severity}`}><div><span>{issue.severity}</span><b>{issue.title}</b></div><p>{issue.whatFound}</p><p><strong>Suggested correction:</strong> {issue.suggestedCorrection}</p><small>{issue.affectedRecords} affected record{issue.affectedRecords === 1 ? "" : "s"} · {issue.confidence} confidence</small><div className="workspace-decision-row"><span>{decisions[issue.id] === "approve" ? "Suggestion approved" : decisions[issue.id] === "keep_raw" ? "Raw value retained" : "Choose a review decision"}</span><div><button type="button" className={decisions[issue.id] === "approve" ? "decision approved" : "decision"} onClick={() => saveDecision(issue.id, "approve")} disabled={pendingDecisionId === issue.id}>Approve</button><button type="button" className={decisions[issue.id] === "keep_raw" ? "decision raw" : "decision"} onClick={() => saveDecision(issue.id, "keep_raw")} disabled={pendingDecisionId === issue.id}>Keep raw value</button></div></div></article>)}</div>}
       </section>
 
       <div className={requestState === "error" ? "workspace-status workspace-status-error" : "workspace-status"} role="status"><span>{requestState === "uploaded" || requestState === "analysed" ? "✓" : requestState === "error" ? "!" : "•"}</span><div><b>{requestState === "analysed" ? "Data Quality complete" : requestState === "uploaded" ? "Upload complete" : requestState === "creating" ? "Creating run" : requestState === "uploading" ? "Uploading source" : requestState === "analysing" ? "Analysing evidence" : "Run status"}</b><small>{error ?? statusCopy}</small></div></div>

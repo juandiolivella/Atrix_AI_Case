@@ -24,7 +24,7 @@ test("uploadDocuments stores a CSV privately and persists traceable source block
     filename: "meeting-notes.csv",
     status: "extracted",
     sourceBlockCount: 1,
-    message: "Extracted 1 traceable CSV row.",
+    message: "Extracted 1 traceable CSV source block.",
   }]);
   assert.equal(calls.put.length, 1);
   assert.equal(calls.put[0].key, "runs/11111111-1111-4111-8111-111111111111/documents/22222222-2222-4222-8222-222222222222/meeting-notes.csv");
