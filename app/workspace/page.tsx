@@ -23,6 +23,7 @@ type DataQualityIssue = {
 };
 type DecisionChoice = "approve" | "keep_raw";
 type EnrichmentSignal = { id: string; title: string; decisionQuestion: string; summary: string; confidence: "high" | "medium" | "low"; sourceDocuments: string[] };
+type PrioritizedInsight = { id: string; priority: "P3" | "P2" | "P1"; title: string; rationale: string; action: string; owner: string; confidence: "high" | "medium" | "low" };
 type RequestState = "idle" | "creating" | "ready" | "uploading" | "uploaded" | "analysing" | "analysed" | "error";
 
 export default function WorkspacePage() {
@@ -37,6 +38,9 @@ export default function WorkspacePage() {
   const [signals, setSignals] = useState<EnrichmentSignal[]>([]);
   const [enriching, setEnriching] = useState(false);
   const [enrichmentDecisions, setEnrichmentDecisions] = useState<Record<string, "accepted" | "edited">>({});
+  const [pendingEnrichmentId, setPendingEnrichmentId] = useState<string | null>(null);
+  const [priorities, setPriorities] = useState<PrioritizedInsight[]>([]);
+  const [prioritizing, setPrioritizing] = useState(false);
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -170,6 +174,35 @@ export default function WorkspacePage() {
     } finally { setEnriching(false); }
   };
 
+  const runPriorities = async () => {
+    if (!run || signals.length === 0) return;
+    setError(null); setPrioritizing(true);
+    try {
+      const response = await fetch(`/api/runs/${run.id}/stages/priorities`, { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(readApiError(payload, "Insight prioritization could not be completed."));
+      setPriorities(payload.stage?.output?.insights ?? []);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    } finally { setPrioritizing(false); }
+  };
+
+  const saveEnrichmentDecision = async (signalId: string, choice: "accepted" | "edited") => {
+    if (!run) return;
+    setError(null); setPendingEnrichmentId(signalId);
+    try {
+      const response = await fetch(`/api/runs/${run.id}/stages/enrichment/decisions`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signalId, choice: choice === "accepted" ? "approve" : "edit" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(readApiError(payload, "The enrichment decision could not be saved."));
+      setEnrichmentDecisions((current) => ({ ...current, [signalId]: choice }));
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    } finally { setPendingEnrichmentId(null); }
+  };
+
   const statusCopy = {
     idle: "Create a run to start retaining your source files and learning records.",
     creating: "Creating persistent run…",
@@ -210,10 +243,17 @@ export default function WorkspacePage() {
       </section>
 
       <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
+        <div className="workspace-card-heading"><span>05</span><div><b>Prioritize Insights</b><small>Rank the enriched signals by urgency, define the next action and suggest a functional owner.</small></div></div>
+        <button className="continue-button workspace-action" type="button" onClick={runPriorities} disabled={signals.length === 0 || prioritizing}>{prioritizing ? "Prioritizing insights…" : "Prioritize Insights →"}</button>
+        {signals.length === 0 && <small className="workspace-hint">Run Enrichment first to unlock prioritization.</small>}
+        {priorities.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Prioritized insights</b><small>P3 = immediate · P2 = near-term · P1 = monitor</small></div>{priorities.map((insight) => <article key={insight.id} className={`workspace-issue priority-${insight.priority.toLowerCase()}`}><div><span>{insight.priority}</span><b>{insight.title}</b></div><p>{insight.rationale}</p><p><strong>Action:</strong> {insight.action}</p><small>Suggested owner: {insight.owner} · {insight.confidence} confidence</small></article>)}</div>}
+      </section>
+
+      <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
         <div className="workspace-card-heading"><span>04</span><div><b>Enrich Evidence</b><small>Cluster validated source evidence into decision-ready signals with a suggested decision question.</small></div></div>
         <button className="continue-button workspace-action" type="button" onClick={runEnrichment} disabled={issues.length === 0 || enriching}>{enriching ? "Enriching evidence…" : "Run Enrichment →"}</button>
         {issues.length === 0 && <small className="workspace-hint">Complete Data Quality first to unlock enrichment.</small>}
-        {signals.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Signals ready for review</b><small>{Object.keys(enrichmentDecisions).length} / {signals.length} reviewed</small></div>{signals.map((signal) => <article key={signal.id} className="workspace-issue"><div><span>{signal.confidence}</span><b>{signal.title}</b></div><p>{signal.summary}</p><p><strong>Decision question:</strong> {signal.decisionQuestion}</p><small>{signal.sourceDocuments.length} source document{signal.sourceDocuments.length === 1 ? "" : "s"}</small><div className="workspace-decision-row"><span>{enrichmentDecisions[signal.id] === "accepted" ? "Suggestion accepted" : enrichmentDecisions[signal.id] === "edited" ? "Marked for edit" : "Choose an enrichment action"}</span><div><button type="button" className={enrichmentDecisions[signal.id] === "accepted" ? "decision approved" : "decision"} onClick={() => setEnrichmentDecisions((current) => ({ ...current, [signal.id]: "accepted" }))}>Accept suggestion</button><button type="button" className={enrichmentDecisions[signal.id] === "edited" ? "decision raw" : "decision"} onClick={() => setEnrichmentDecisions((current) => ({ ...current, [signal.id]: "edited" }))}>Edit</button></div></div></article>)}</div>}
+        {signals.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Signals ready for review</b><small>{Object.keys(enrichmentDecisions).length} / {signals.length} reviewed</small></div>{signals.map((signal) => <article key={signal.id} className="workspace-issue"><div><span>{signal.confidence}</span><b>{signal.title}</b></div><p>{signal.summary}</p><p><strong>Decision question:</strong> {signal.decisionQuestion}</p><small>{signal.sourceDocuments.length} source document{signal.sourceDocuments.length === 1 ? "" : "s"}</small><div className="workspace-decision-row"><span>{enrichmentDecisions[signal.id] === "accepted" ? "Suggestion accepted" : enrichmentDecisions[signal.id] === "edited" ? "Marked for edit" : "Choose an enrichment action"}</span><div><button type="button" className={enrichmentDecisions[signal.id] === "accepted" ? "decision approved" : "decision"} onClick={() => saveEnrichmentDecision(signal.id, "accepted")} disabled={pendingEnrichmentId === signal.id}>Accept suggestion</button><button type="button" className={enrichmentDecisions[signal.id] === "edited" ? "decision raw" : "decision"} onClick={() => saveEnrichmentDecision(signal.id, "edited")} disabled={pendingEnrichmentId === signal.id}>Edit</button></div></div></article>)}</div>}
       </section>
 
       <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
