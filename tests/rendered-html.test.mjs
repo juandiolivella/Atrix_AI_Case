@@ -92,3 +92,18 @@ test("one-click runs route directly to the executive handoff", async () => {
   assert.match(staticPage, /approved using workflow history/);
   assert.match(staticPage, /selectedMode==='one-click'\?openOneClickDeck\(\):openDataQualityReview\(\)/);
 });
+
+test("workflow runs API provisions the six persistent stages", async () => {
+  const [repository, createRoute, detailRoute] = await Promise.all([
+    readFile(new URL("../db/workflow-runs.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/runs/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/runs/[id]/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(repository, /action_tracker/);
+  assert.match(repository, /database\.transaction/);
+  assert.match(createRoute, /export async function POST/);
+  assert.match(createRoute, /human_in_the_loop/);
+  assert.match(detailRoute, /export async function GET/);
+  assert.match(detailRoute, /Run not found/);
+});
