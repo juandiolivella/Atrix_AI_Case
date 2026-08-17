@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
 async function read(relativePath) {
   return readFile(new URL(relativePath, root), "utf8");
+}
+
+async function exists(relativePath) {
+  await access(new URL(relativePath, root));
 }
 
 test("configures Vercel to deploy the Next.js application instead of the static demo", async () => {
@@ -16,9 +20,46 @@ test("configures Vercel to deploy the Next.js application instead of the static 
   const packageConfig = JSON.parse(packageJson);
   const vercelConfig = JSON.parse(vercelJson);
 
-  assert.equal(packageConfig.scripts.build, "next build --webpack");
+  assert.equal(packageConfig.scripts.build, "next build");
   assert.equal(packageConfig.scripts.dev, "next dev");
   assert.ok(packageConfig.dependencies.next, "Next.js must be a runtime dependency");
   assert.equal(vercelConfig.framework, "nextjs");
   assert.equal(vercelConfig.outputDirectory, undefined);
+});
+
+test("serves Screen 0 as the root route with explicit demo and functional-workflow choices", async () => {
+  const page = await read("app/page.tsx");
+
+  assert.match(page, /Functional workflow/i);
+  assert.match(page, /Explore demo/i);
+  assert.match(page, /href=["']\/demo["']/);
+  assert.match(page, /href=["']\/workspace["']/);
+});
+
+test("defines Node.js API routes for every persisted functional-workflow stage", async () => {
+  const routes = [
+    "app/api/runs/route.ts",
+    "app/api/runs/[runId]/documents/route.ts",
+    "app/api/runs/[runId]/stages/data-quality/route.ts",
+  ];
+
+  await Promise.all(routes.map(exists));
+
+  for (const route of routes) {
+    const source = await read(route);
+    assert.match(source, /export const runtime\s*=\s*["']nodejs["']/);
+    assert.match(source, /export\s+async\s+function\s+GET\s*\(/);
+    assert.match(source, /export\s+async\s+function\s+POST\s*\(/);
+  }
+});
+
+test("keeps the approved Insights Deck available from Next public assets", async () => {
+  const [publicDeck, legacyDeck] = await Promise.all([
+    stat(new URL("public/20260909 - Insights Deck VF.pptx", root)),
+    stat(new URL("vercel-static/20260909 - Insights Deck VF.pptx", root)),
+  ]);
+
+  assert.ok(publicDeck.isFile());
+  assert.ok(publicDeck.size > 0);
+  assert.ok(legacyDeck.isFile());
 });
