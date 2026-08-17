@@ -85,3 +85,12 @@ test("connects the functional workspace to persistent uploads and Data Quality",
   assert.match(page, /Creating run|Uploading/);
   assert.match(page, /Run created|Upload complete/);
 });
+
+test("moves a Human in the Loop upload straight into Data Quality review without approving suggestions", async () => {
+  const page = await read("app/workspace/page.tsx");
+
+  assert.match(page, /activeRun\.mode === "human_in_the_loop"/);
+  assert.match(page, /await runDataQuality\(activeRun, uploadedDocuments\)/);
+  assert.match(page, /dataQualitySectionRef\.current\?\.scrollIntoView/);
+  assert.match(page, /ref=\{dataQualitySectionRef\}/);
+});

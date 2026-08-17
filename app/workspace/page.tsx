@@ -51,6 +51,7 @@ export default function WorkspacePage() {
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dataQualitySectionRef = useRef<HTMLElement>(null);
 
   const selectFiles = (fileList: FileList | null) => {
     const nextFiles = Array.from(fileList ?? []);
@@ -63,6 +64,27 @@ export default function WorkspacePage() {
     setFiles(nextFiles);
     setError(null);
   };
+
+  async function runDataQuality(activeRun: Run | null = run, sourceDocuments: DocumentRecord[] = documents) {
+    if (!activeRun || !sourceDocuments.some((document) => document.status === "extracted")) return;
+
+    setError(null);
+    setRequestState("analysing");
+    try {
+      const response = await fetch(`/api/runs/${activeRun.id}/stages/data-quality`, { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(readApiError(payload, "Data Quality could not be completed."));
+      }
+
+      setIssues(payload.stage?.output?.issues ?? []);
+      setDecisions({});
+      setRequestState("analysed");
+    } catch (caughtError) {
+      setRequestState("error");
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    }
+  }
 
   const uploadFiles = async (activeRun: Run, filesToUpload: File[]) => {
     if (filesToUpload.length === 0) return;
@@ -79,10 +101,16 @@ export default function WorkspacePage() {
       throw new Error(readApiError(payload, "The documents could not be uploaded."));
     }
 
-    setDocuments(payload.documents ?? []);
+    const uploadedDocuments = payload.documents ?? [];
+    setDocuments(uploadedDocuments);
     setFiles([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setRequestState("uploaded");
+
+    if (activeRun.mode === "human_in_the_loop" && uploadedDocuments.some((document: DocumentRecord) => document.status === "extracted")) {
+      await runDataQuality(activeRun, uploadedDocuments);
+      requestAnimationFrame(() => dataQualitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
   };
 
   const createRun = async (event: FormEvent<HTMLFormElement>) => {
@@ -121,27 +149,6 @@ export default function WorkspacePage() {
     setError(null);
     try {
       await uploadFiles(run, files);
-    } catch (caughtError) {
-      setRequestState("error");
-      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
-    }
-  };
-
-  const runDataQuality = async () => {
-    if (!run || !documents.some((document) => document.status === "extracted")) return;
-
-    setError(null);
-    setRequestState("analysing");
-    try {
-      const response = await fetch(`/api/runs/${run.id}/stages/data-quality`, { method: "POST" });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(readApiError(payload, "Data Quality could not be completed."));
-      }
-
-      setIssues(payload.stage?.output?.issues ?? []);
-      setDecisions({});
-      setRequestState("analysed");
     } catch (caughtError) {
       setRequestState("error");
       setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
@@ -345,9 +352,9 @@ export default function WorkspacePage() {
         {signals.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Signals ready for review</b><small>{Object.keys(enrichmentDecisions).length} / {signals.length} reviewed</small></div>{signals.map((signal) => <article key={signal.id} className="workspace-issue"><div><span>{signal.confidence}</span><b>{signal.title}</b></div><p>{signal.summary}</p><p><strong>Decision question:</strong> {signal.decisionQuestion}</p><small>{signal.sourceDocuments.length} source document{signal.sourceDocuments.length === 1 ? "" : "s"}</small><div className="workspace-decision-row"><span>{enrichmentDecisions[signal.id] === "accepted" ? "Suggestion accepted" : enrichmentDecisions[signal.id] === "edited" ? "Marked for edit" : "Choose an enrichment action"}</span><div><button type="button" className={enrichmentDecisions[signal.id] === "accepted" ? "decision approved" : "decision"} onClick={() => saveEnrichmentDecision(signal.id, "accepted")} disabled={pendingEnrichmentId === signal.id}>Accept suggestion</button><button type="button" className={enrichmentDecisions[signal.id] === "edited" ? "decision raw" : "decision"} onClick={() => saveEnrichmentDecision(signal.id, "edited")} disabled={pendingEnrichmentId === signal.id}>Edit</button></div></div></article>)}</div>}
       </section>
 
-      <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
+      <section ref={dataQualitySectionRef} className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
         <div className="workspace-card-heading"><span>03</span><div><b>Review Data Quality</b><small>Analyse extracted evidence for missing values, inconsistent labels and traceability gaps.</small></div></div>
-        <button className="continue-button workspace-action" type="button" onClick={runDataQuality} disabled={!documents.some((document) => document.status === "extracted") || requestState === "analysing"}>{requestState === "analysing" ? "Running Data Quality…" : "Run Data Quality →"}</button>
+        <button className="continue-button workspace-action" type="button" onClick={() => runDataQuality()} disabled={!documents.some((document) => document.status === "extracted") || requestState === "analysing"}>{requestState === "analysing" ? "Running Data Quality…" : "Run Data Quality →"}</button>
         {documents.length > 0 && !documents.some((document) => document.status === "extracted") && <small className="workspace-hint">Add an extractable document before running this stage. PDFs remain queued for now.</small>}
         {issues.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Data Quality results</b><small>{Object.keys(decisions).length} / {issues.length} reviewed</small></div>{issues.map((issue) => <article key={issue.id} className={`workspace-issue severity-${issue.severity}`}><div><span>{issue.severity}</span><b>{issue.title}</b></div><p>{issue.whatFound}</p><p><strong>Suggested correction:</strong> {issue.suggestedCorrection}</p><small>{issue.affectedRecords} affected record{issue.affectedRecords === 1 ? "" : "s"} · {issue.confidence} confidence</small><div className="workspace-decision-row"><span>{decisions[issue.id] === "approve" ? "Suggestion approved" : decisions[issue.id] === "keep_raw" ? "Raw value retained" : "Choose a review decision"}</span><div><button type="button" className={decisions[issue.id] === "approve" ? "decision approved" : "decision"} onClick={() => saveDecision(issue.id, "approve")} disabled={pendingDecisionId === issue.id}>Approve</button><button type="button" className={decisions[issue.id] === "keep_raw" ? "decision raw" : "decision"} onClick={() => saveDecision(issue.id, "keep_raw")} disabled={pendingDecisionId === issue.id}>Keep raw value</button></div></div></article>)}</div>}
       </section>
