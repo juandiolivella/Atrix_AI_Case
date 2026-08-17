@@ -1,4 +1,5 @@
 import { desc, eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { getDb } from "./index";
 import { workflowDocuments, workflowRuns, workflowStages } from "./schema";
 
@@ -29,19 +30,19 @@ export async function createWorkflowRun(
   input: CreateWorkflowRunInput,
   database: Database = getDb(),
 ) {
-  return database.transaction(async (tx) => {
-    const [run] = await tx
+  const runId = randomUUID();
+  const [runs, stages] = await database.batch([
+    database
       .insert(workflowRuns)
-      .values({ name: input.name, mode: input.mode })
-      .returning();
-
-    const stages = await tx
+      .values({ id: runId, name: input.name, mode: input.mode })
+      .returning(),
+    database
       .insert(workflowStages)
-      .values(WORKFLOW_STAGE_TYPES.map((type) => ({ runId: run.id, type })))
-      .returning();
+      .values(WORKFLOW_STAGE_TYPES.map((type) => ({ runId, type })))
+      .returning(),
+  ]);
 
-    return { ...run, documents: [], stages };
-  });
+  return { ...runs[0], documents: [], stages };
 }
 
 export async function listWorkflowRuns(database: Database = getDb()) {

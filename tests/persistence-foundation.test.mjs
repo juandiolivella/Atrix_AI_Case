@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const schemaPath = new URL("../db/schema.ts", import.meta.url);
 const connectorPath = new URL("../db/index.ts", import.meta.url);
+const workflowRunsPath = new URL("../db/workflow-runs.ts", import.meta.url);
 
 test("persistence schema defines every workflow record", async () => {
   const schema = await readFile(schemaPath, "utf8");
@@ -29,4 +30,11 @@ test("database connector is lazy and requires a Neon connection string only when
   assert.doesNotMatch(connector, /from "cloudflare:workers"/);
   assert.doesNotMatch(connector, /export const db\s*=/);
   assert.doesNotMatch(connector, /^const database = drizzle/m);
+});
+
+test("workflow run creation uses Neon HTTP batch semantics", async () => {
+  const source = await readFile(workflowRunsPath, "utf8");
+
+  assert.match(source, /database\.batch\(/);
+  assert.doesNotMatch(source, /database\.transaction\(/);
 });

@@ -312,7 +312,7 @@ function findXmlElements(xml: string, localName: string): XmlElement[] {
 
 function findOpeningTags(xml: string, localName: string): string[] {
   const escapedName = localName.replace(/:/g, "\\:");
-  const expression = new RegExp(`<${escapedName}\\b[^>]*\\/?\s*>`, "g");
+  const expression = new RegExp(`<${escapedName}\\b[^>]*\\/?\\s*>`, "g");
   return Array.from(xml.matchAll(expression), (match) => match[0]);
 }
 
