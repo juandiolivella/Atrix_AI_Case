@@ -32,11 +32,11 @@ export function parseEnrichmentSignals(text: string): EnrichmentSignal[] {
   let candidate: unknown;
   try { candidate = JSON.parse(text); } catch { throw new Error("OpenAI returned invalid JSON for enrichment."); }
   const signals = candidate && typeof candidate === "object" && "signals" in candidate ? (candidate as { signals: unknown }).signals : null;
-  if (!Array.isArray(signals) || signals.some((signal) => !isSignal(signal))) throw new Error("OpenAI returned an invalid enrichment response.");
+  if (!Array.isArray(signals) || signals.some((signal) => !isEnrichmentSignal(signal))) throw new Error("OpenAI returned an invalid enrichment response.");
   return signals;
 }
 
-function isSignal(value: unknown): value is EnrichmentSignal {
+export function isEnrichmentSignal(value: unknown): value is EnrichmentSignal {
   if (!value || typeof value !== "object") return false;
   const signal = value as Partial<EnrichmentSignal>;
   return nonEmpty(signal.id) && nonEmpty(signal.title) && nonEmpty(signal.decisionQuestion) && nonEmpty(signal.summary)

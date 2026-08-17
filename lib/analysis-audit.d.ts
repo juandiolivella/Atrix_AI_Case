@@ -28,6 +28,23 @@ export interface DataQualityDecision {
   rationale?: string;
 }
 
+export interface EnrichmentSignalAudit {
+  id: string;
+  title: string;
+  decisionQuestion: string;
+  summary: string;
+  confidence: IssueConfidence;
+  sourceDocuments: string[];
+  evidence: EvidenceReference[];
+}
+
+export interface EnrichmentDecision {
+  signalId: string;
+  status: "approved" | "edited" | "pending";
+  decidedAt: string;
+  rationale?: string;
+}
+
 export interface IntakeDocumentAudit {
   id: string;
   fileName: string;
@@ -59,4 +76,11 @@ export function createDataQualityAuditMarkdown(input: {
   createdAt: string;
   issues: DataQualityIssue[];
   decisions: DataQualityDecision[];
+}): string;
+
+export function createEnrichmentAuditMarkdown(input: {
+  runId: string;
+  createdAt: string;
+  signals: EnrichmentSignalAudit[];
+  decisions: EnrichmentDecision[];
 }): string;
