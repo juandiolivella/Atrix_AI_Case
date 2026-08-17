@@ -7,6 +7,38 @@ import {
   validateDocumentFormat,
 } from "../lib/documents/extraction.ts";
 
+const PDF_WITH_TWO_PAGES = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Length 47 >>
+stream
+BT /F1 18 Tf 72 720 Td (First page evidence) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Length 48 >>
+stream
+BT /F1 18 Tf 72 720 Td (Second page evidence) Tj ET
+endstream
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF`;
+
 test("extractDocument creates traceable source blocks from CSV rows", async () => {
   const result = await extractDocument({
     documentId: "meeting-notes",
@@ -111,15 +143,28 @@ test("extractDocument creates traceable data rows from each XLSX sheet", async (
   ]);
 });
 
-test("PDF extraction is queued with its explicit runtime dependency", async () => {
+test("a malformed PDF fails without creating untraceable evidence", async () => {
   const result = await extractDocument({
     documentId: "report",
     filename: "report.pdf",
     content: new Uint8Array([37, 80, 68, 70]),
   });
 
-  assert.equal(result.status, "queued");
-  assert.match(result.message, /pdfjs-dist/i);
+  assert.equal(result.status, "failed");
+  assert.equal(result.sourceBlocks.length, 0);
+});
+
+test("extractDocument creates a traceable text block for every non-empty PDF page", async () => {
+  const result = await extractDocument({
+    documentId: "pdf-1",
+    filename: "field-notes.pdf",
+    content: new TextEncoder().encode(PDF_WITH_TWO_PAGES),
+  });
+
+  assert.equal(result.status, "completed");
+  assert.deepEqual(result.sourceBlocks.map((block) => block.locator.page), [1, 2]);
+  assert.match(result.sourceBlocks[0].text, /First page evidence/);
+  assert.match(result.sourceBlocks[1].text, /Second page evidence/);
 });
 
 async function zipContent(entries) {

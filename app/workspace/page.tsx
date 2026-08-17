@@ -24,6 +24,7 @@ type DataQualityIssue = {
 type DecisionChoice = "approve" | "keep_raw";
 type EnrichmentSignal = { id: string; title: string; decisionQuestion: string; summary: string; confidence: "high" | "medium" | "low"; sourceDocuments: string[] };
 type PrioritizedInsight = { id: string; priority: "P3" | "P2" | "P1"; title: string; rationale: string; action: string; owner: string; confidence: "high" | "medium" | "low" };
+type ActionItem = { id: string; title: string; description: string; priority: "P3" | "P2" | "P1"; owner: string; deadline: string; status: "not_started" | "in_progress" | "blocked" | "done" };
 type RequestState = "idle" | "creating" | "ready" | "uploading" | "uploaded" | "analysing" | "analysed" | "error";
 
 export default function WorkspacePage() {
@@ -40,8 +41,13 @@ export default function WorkspacePage() {
   const [enrichmentDecisions, setEnrichmentDecisions] = useState<Record<string, "accepted" | "edited">>({});
   const [pendingEnrichmentId, setPendingEnrichmentId] = useState<string | null>(null);
   const [priorities, setPriorities] = useState<PrioritizedInsight[]>([]);
+  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [generatingTracker, setGeneratingTracker] = useState(false);
+  const [priorityDecisions, setPriorityDecisions] = useState<Record<string, "approved" | "rejected">>({});
+  const [pendingPriorityId, setPendingPriorityId] = useState<string | null>(null);
   const [prioritizing, setPrioritizing] = useState(false);
   const [generatingDeck, setGeneratingDeck] = useState(false);
+  const [runningOneClick, setRunningOneClick] = useState(false);
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -182,10 +188,25 @@ export default function WorkspacePage() {
       const response = await fetch(`/api/runs/${run.id}/stages/priorities`, { method: "POST" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(readApiError(payload, "Insight prioritization could not be completed."));
-      setPriorities(payload.stage?.output?.insights ?? []);
+      setPriorities(payload.stage?.output?.insights ?? []); setPriorityDecisions({});
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
     } finally { setPrioritizing(false); }
+  };
+
+  const savePriorityDecision = async (insightId: string, choice: "approve" | "reject") => {
+    if (!run) return;
+    setError(null); setPendingPriorityId(insightId);
+    try {
+      const response = await fetch(`/api/runs/${run.id}/stages/priorities/decisions`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ insightId, choice }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(readApiError(payload, "The priority decision could not be saved."));
+      setPriorityDecisions((current) => ({ ...current, [insightId]: choice === "approve" ? "approved" : "rejected" }));
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    } finally { setPendingPriorityId(null); }
   };
 
   const generateExecutiveReadout = async () => {
@@ -205,6 +226,40 @@ export default function WorkspacePage() {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
     } finally { setGeneratingDeck(false); }
+  };
+
+  const generateActionTracker = async () => {
+    if (!run || priorities.length === 0) return;
+    setError(null); setGeneratingTracker(true);
+    try {
+      const response = await fetch(`/api/runs/${run.id}/stages/action-tracker`, { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(readApiError(payload, "The Action Tracker could not be generated."));
+      setActionItems(payload.stage?.output?.items ?? []);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    } finally { setGeneratingTracker(false); }
+  };
+
+  const runOneClickWorkflow = async () => {
+    if (!run || run.mode !== "one_click") return;
+    setError(null); setRunningOneClick(true);
+    try {
+      const response = await fetch(`/api/runs/${run.id}/one-click`, { method: "POST" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(readApiError(payload, "The One Click workflow could not be completed."));
+      }
+      const deck = await response.blob(); const url = URL.createObjectURL(deck); const link = document.createElement("a");
+      link.href = url; link.download = `${run.name.replaceAll(/[^a-z0-9]+/gi, "-").replaceAll(/^-|-$/g, "").toLowerCase() || "atrix"}-executive-readout.pptx`; link.click(); URL.revokeObjectURL(url);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.");
+    } finally { setRunningOneClick(false); }
+  };
+
+  const downloadTrackerCsv = () => {
+    if (!run) return;
+    window.open(`/api/runs/${run.id}/stages/action-tracker?format=csv`, "_blank", "noopener,noreferrer");
   };
 
   const saveEnrichmentDecision = async (signalId: string, choice: "accepted" | "edited") => {
@@ -262,6 +317,8 @@ export default function WorkspacePage() {
         {documents.length > 0 && <div className="workspace-documents"><b>Stored documents</b>{documents.map((document) => <div key={document.id}><span>{document.filename}</span><small>{document.status} · {document.sourceBlockCount} source block{document.sourceBlockCount === 1 ? "" : "s"}</small><small>{document.message}</small></div>)}</div>}
       </section>
 
+      {run?.mode === "one_click" && <section className="workspace-card workspace-one-click"><div className="workspace-card-heading"><span>∞</span><div><b>One Click</b><small>All suggestions are automatically approved using the current approved playbook. You can still review every source, output and decision in this workspace.</small></div></div><button className="continue-button workspace-action" type="button" onClick={runOneClickWorkflow} disabled={documents.length === 0 || runningOneClick}>{runningOneClick ? "Running One Click workflow…" : "Run One Click workflow →"}</button><small className="workspace-hint">The generated deck downloads once the workflow is complete; assumptions are automatically approved and retained in the audit trail.</small></section>}
+
       <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
         <div className="workspace-card-heading"><span>06</span><div><b>Generate Executive Readout</b><small>Create a downloadable, executive-ready deck from the prioritized insights, actions, owners and traceable source evidence.</small></div></div>
         <button className="continue-button workspace-action" type="button" onClick={generateExecutiveReadout} disabled={priorities.length === 0 || generatingDeck}>{generatingDeck ? "Generating deck…" : "Download Executive Readout →"}</button>
@@ -269,10 +326,16 @@ export default function WorkspacePage() {
       </section>
 
       <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
+        <div className="workspace-card-heading"><span>07</span><div><b>Generate Action Tracker</b><small>Turn approved priorities into a dashboard of To-Dos, owners, deadlines and statuses.</small></div></div>
+        <button className="continue-button workspace-action" type="button" onClick={generateActionTracker} disabled={priorities.length === 0 || generatingTracker}>{generatingTracker ? "Generating tracker…" : "Generate Action Tracker →"}</button>
+        {actionItems.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Action Tracker</b><button type="button" className="decision approved" onClick={downloadTrackerCsv}>Download tracker CSV</button></div>{actionItems.map((item) => <article key={item.id} className={`workspace-issue priority-${item.priority.toLowerCase()}`}><div><span>{item.priority}</span><b>{item.title}</b></div><p>{item.description}</p><small>Owner: {item.owner} · Deadline: {item.deadline} · Status: {item.status.replaceAll("_", " ")}</small></article>)}</div>}
+      </section>
+
+      <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>
         <div className="workspace-card-heading"><span>05</span><div><b>Prioritize Insights</b><small>Rank the enriched signals by urgency, define the next action and suggest a functional owner.</small></div></div>
         <button className="continue-button workspace-action" type="button" onClick={runPriorities} disabled={signals.length === 0 || prioritizing}>{prioritizing ? "Prioritizing insights…" : "Prioritize Insights →"}</button>
         {signals.length === 0 && <small className="workspace-hint">Run Enrichment first to unlock prioritization.</small>}
-        {priorities.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Prioritized insights</b><small>P3 = immediate · P2 = near-term · P1 = monitor</small></div>{priorities.map((insight) => <article key={insight.id} className={`workspace-issue priority-${insight.priority.toLowerCase()}`}><div><span>{insight.priority}</span><b>{insight.title}</b></div><p>{insight.rationale}</p><p><strong>Action:</strong> {insight.action}</p><small>Suggested owner: {insight.owner} · {insight.confidence} confidence</small></article>)}</div>}
+        {priorities.length > 0 && <div className="workspace-issues"><div className="workspace-issues-heading"><b>Prioritized insights</b><small>{Object.keys(priorityDecisions).length} / {priorities.length} reviewed · P3 = immediate · P2 = near-term · P1 = monitor</small></div>{priorities.map((insight) => <article key={insight.id} className={`workspace-issue priority-${insight.priority.toLowerCase()}`}><div><span>{insight.priority}</span><b>{insight.title}</b></div><p>{insight.rationale}</p><p><strong>Action:</strong> {insight.action}</p><small>Suggested owner: {insight.owner} · {insight.confidence} confidence</small><div className="workspace-decision-row"><span>{priorityDecisions[insight.id] === "approved" ? "Insight approved" : priorityDecisions[insight.id] === "rejected" ? "Insight rejected" : "Review this insight"}</span><div><button type="button" className={priorityDecisions[insight.id] === "approved" ? "decision approved" : "decision"} onClick={() => savePriorityDecision(insight.id, "approve")} disabled={pendingPriorityId === insight.id}>Approve insight</button><button type="button" className={priorityDecisions[insight.id] === "rejected" ? "decision raw" : "decision"} onClick={() => savePriorityDecision(insight.id, "reject")} disabled={pendingPriorityId === insight.id}>Reject insight</button></div></div></article>)}</div>}
       </section>
 
       <section className={run ? "workspace-card" : "workspace-card workspace-card-muted"} data-disabled={!run}>

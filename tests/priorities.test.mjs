@@ -42,3 +42,20 @@ test("defines a Node priority-stage route that persists the 04 audit", async () 
   assert.match(route, /04-priorities\.md/);
   assert.match(route, /workflowStages/);
 });
+
+test("defines a priority-review route that records an individual insight decision", async () => {
+  const route = await readFile(new URL("../app/api/runs/[runId]/stages/priorities/decisions/route.ts", import.meta.url), "utf8");
+  assert.match(route, /export const runtime\s*=\s*["']nodejs["']/);
+  assert.match(route, /export\s+async\s+function\s+GET\s*\(/);
+  assert.match(route, /export\s+async\s+function\s+POST\s*\(/);
+  assert.match(route, /reviewDecisions/);
+  assert.match(route, /04-priorities\.md/);
+  assert.match(route, /insightId/);
+});
+
+test("workspace exposes individual review actions for prioritized insights", async () => {
+  const page = await readFile(new URL("../app/workspace/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /stages\/priorities\/decisions/);
+  assert.match(page, /Approve insight/);
+  assert.match(page, /Reject insight/);
+});

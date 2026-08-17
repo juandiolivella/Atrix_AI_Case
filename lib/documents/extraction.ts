@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 export type DocumentFormat = "csv" | "pdf" | "docx" | "pptx" | "xlsx";
 export type ExtractionStatus = "completed" | "queued" | "failed";
@@ -68,15 +69,6 @@ export async function extractDocument(
     };
   }
 
-  if (validation.format === "pdf") {
-    return {
-      status: "queued",
-      format: "pdf",
-      sourceBlocks: [],
-      message: "PDF extraction is queued until the pdfjs-dist server-side extractor is installed.",
-    };
-  }
-
   try {
     const sourceBlocks = await extractSourceBlocks(validation.format, request);
     return {
@@ -96,7 +88,7 @@ export async function extractDocument(
 }
 
 async function extractSourceBlocks(
-  format: Exclude<DocumentFormat, "pdf">,
+  format: DocumentFormat,
   request: ExtractionRequest,
 ): Promise<SourceBlock[]> {
   switch (format) {
@@ -108,7 +100,36 @@ async function extractSourceBlocks(
       return extractPptxSourceBlocks(request);
     case "xlsx":
       return extractXlsxSourceBlocks(request);
+    case "pdf":
+      return extractPdfSourceBlocks(request);
   }
+}
+
+async function extractPdfSourceBlocks(request: ExtractionRequest): Promise<SourceBlock[]> {
+  const data = typeof request.content === "string"
+    ? new TextEncoder().encode(request.content)
+    : request.content;
+  const document = await getDocument({ data }).promise;
+  const blocks: SourceBlock[] = [];
+
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const text = content.items
+      .flatMap((item) => "str" in item && typeof item.str === "string" ? [item.str.trim()] : [])
+      .filter(Boolean)
+      .join(" ");
+    if (text) {
+      blocks.push({
+        id: `${request.documentId}:page-${pageNumber}`,
+        documentId: request.documentId,
+        kind: "text",
+        locator: { page: pageNumber },
+        text,
+      });
+    }
+  }
+  return blocks;
 }
 
 async function extractDocxSourceBlocks(request: ExtractionRequest): Promise<SourceBlock[]> {
