@@ -17,6 +17,8 @@ import {
   workflowStages,
 } from "@/db/schema";
 
+export const runtime = "nodejs";
+
 type RouteContext = { params: Promise<{ runId: string }> };
 
 function errorResponse(status: number, code: string, message: string) {

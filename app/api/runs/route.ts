@@ -4,6 +4,8 @@ import {
   type WorkflowMode,
 } from "@/db/workflow-runs";
 
+export const runtime = "nodejs";
+
 const MAX_RUN_NAME_LENGTH = 255;
 
 function errorResponse(error: unknown) {

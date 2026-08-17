@@ -5,6 +5,8 @@ import { getDb } from "@/db";
 import { sourceBlocks, workflowDocuments, workflowRuns } from "@/db/schema";
 import { uploadDocuments } from "@/lib/documents/upload";
 
+export const runtime = "nodejs";
+
 type RouteContext = {
   params: Promise<{ runId: string }>;
 };
