@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import JSZip from "jszip";
 import { DOMMatrix } from "@napi-rs/canvas";
@@ -10,6 +11,12 @@ import {
 
 test("provides the DOMMatrix runtime required by the server-side PDF extractor", () => {
   assert.equal(typeof DOMMatrix, "function");
+});
+
+test("loads PDF.js only when a PDF is being extracted so other uploads stay independent", async () => {
+  const source = await readFile(new URL("../lib/documents/extraction.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /^import .*pdfjs-dist/m);
+  assert.match(source, /await import\("pdfjs-dist\/legacy\/build\/pdf\.mjs"\)/);
 });
 
 const PDF_WITH_TWO_PAGES = `%PDF-1.4

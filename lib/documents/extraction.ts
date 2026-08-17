@@ -1,5 +1,4 @@
 import JSZip from "jszip";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 export type DocumentFormat = "csv" | "pdf" | "docx" | "pptx" | "xlsx";
 export type ExtractionStatus = "completed" | "queued" | "failed";
@@ -109,6 +108,13 @@ async function extractPdfSourceBlocks(request: ExtractionRequest): Promise<Sourc
   const data = typeof request.content === "string"
     ? new TextEncoder().encode(request.content)
     : request.content;
+  const canvas = await import("@napi-rs/canvas");
+  Object.assign(globalThis, {
+    DOMMatrix: canvas.DOMMatrix,
+    ImageData: canvas.ImageData,
+    Path2D: canvas.Path2D,
+  });
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const document = await getDocument({ data }).promise;
   const blocks: SourceBlock[] = [];
 
